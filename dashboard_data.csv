@@ -1,5 +1,5 @@
-YYYY-MM;Q1, Q2 o vacio (mensual);Codigo de obra. 2,3 o 4 letras;familia del dato;Nombre puntual del dato;El número;$ o U$D;libre opcional;;;;;
-periodo;quincena;obra;categoria;métrica;valor;moneda;notas;;;;;
+YYYY-MM;Q1, Q2 o vacio (mensual);Codigo de obra. 2,3 o 4 letras;familia del dato;Nombre puntual del dato;El nÃºmero;$ o U$D;libre opcional;;;;;
+periodo;quincena;obra;categoria;metrica;valor;moneda;notas;;;;;
 2025-12;Q2;ARN;Horas;Hs reales;220;;;;;;;
 2026-01;Q1;ARN;Horas;Hs reales;442;;;;;;;
 2026-01;Q2;ARN;Horas;Hs reales;448;;;;;;;
