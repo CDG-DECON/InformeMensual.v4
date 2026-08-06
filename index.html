@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Mensual de Obras</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="data-engine.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #006854;
+            --primary-light: #00A887;
+            --accent: #4BFFDD;
+            --accent-light: #D9FFF8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-light: #f8fafc;
+            --gray-highlight: #e5e7eb;
+            --text-dark: #1e293b;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --card-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --card-shadow-hover: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Manrope', sans-serif;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+            min-height: 100vh;
+            padding: 1.5rem 1rem;
+            color: var(--text-dark);
+        }
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
+            display: flex; align-items: center; justify-content: center; z-index: 10000;
+        }
+        .login-box { background: white; border-radius: 24px; padding: 3rem; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); max-width: 450px; width: 90%; }
+        .login-title { font-size: 2rem; font-weight: 800; color: var(--primary); margin-bottom: 0.5rem; text-align: center; }
+        .login-subtitle { font-size: 1rem; color: var(--text-light); text-align: center; margin-bottom: 2rem; }
+        .login-input { width: 100%; padding: 1rem; border: 2px solid var(--border); border-radius: 12px; font-size: 1rem; font-family: 'Manrope', sans-serif; margin-bottom: 1rem; }
+        .login-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0, 168, 135, 0.1); }
+        .login-btn { width: 100%; padding: 1rem; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: 'Manrope', sans-serif; }
+        .login-btn:hover { background: var(--primary-light); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 104, 84, 0.3); }
+        .login-error { color: var(--danger); font-size: 0.875rem; margin-top: 0.5rem; text-align: center; display: none; }
+        .container { max-width: 1600px; margin: 0 auto; display: none; }
+        .container.authenticated { display: block; }
+        .header { background: white; border-radius: 24px; padding: 2rem; margin-bottom: 2rem; box-shadow: var(--card-shadow); position: relative; overflow: hidden; display: flex; justify-content: space-between; align-items: center; }
+        .header-content { position: relative; z-index: 1; flex: 1; }
+        h1 { font-size: 2.25rem; font-weight: 800; color: var(--primary); margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+        .subtitle { font-size: 1.05rem; color: var(--text-light); font-weight: 500; }
+        .header-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+        .refresh-btn { padding: 0.6rem 1.1rem; background: var(--bg-light); border: 2px solid var(--border); border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.85rem; font-family: 'Manrope', sans-serif; color: var(--primary); display: inline-flex; align-items: center; gap: 0.4rem; }
+        .refresh-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .update-note { font-size: 0.8rem; color: var(--text-light); }
+        .period-selector { display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap; }
+        .period-btn { padding: 0.75rem 1.5rem; background: var(--bg-light); border: 2px solid var(--border); border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 0.95rem; font-family: 'Manrope', sans-serif; }
+        .period-btn:hover { background: var(--primary); color: white; border-color: var(--primary); transform: translateY(-2px); }
+        .period-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 12px rgba(10, 37, 64, 0.3); }
+        .two-col-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }
+        @media (max-width: 768px) {
+            .two-col-metrics { grid-template-columns: 1fr; }
+            .header { flex-direction: column; text-align: center; }
+        }
+        .metric-card { background: white; border-radius: 16px; padding: 1.75rem; box-shadow: var(--card-shadow); transition: all 0.3s ease; }
+        .metric-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+        .metric-label { font-size: 0.8rem; color: var(--text-light); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; line-height: 1.3; }
+        .metric-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+        .metric-value { font-size: 2.25rem; font-weight: 800; color: var(--primary); font-family: 'JetBrains Mono', monospace; }
+        .metric-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
+        .metric-status { font-size: 0.85rem; font-weight: 600; color: var(--text-light); }
+        .metric-vs-text { font-size: 0.75rem; color: var(--text-light); font-weight: 500; text-align: right; }
+        .chart-card { background: white; border-radius: 20px; padding: 2rem; box-shadow: var(--card-shadow); margin-bottom: 2rem; position: relative; }
+        .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+        .chart-title { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+        .chart-subtitle { font-size: 0.875rem; color: var(--text-light); margin-top: 0.25rem; }
+        .chart-legend-note { font-size: 0.8rem; color: var(--text-light); font-style: italic; margin-top: 0.5rem; }
+        .chart-note { font-size: 0.8rem; color: var(--text-light); font-style: italic; margin-top: 1rem; text-align: center; }
+        .historical-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 2rem; display: none; z-index: 100; }
+        .historical-overlay.active { display: block; }
+        .historical-close { position: absolute; top: 1rem; right: 1rem; background: var(--danger); color: white; border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer; font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; justify-content: center; z-index: 101; }
+        .historical-close:hover { background: #dc2626; transform: scale(1.1); }
+        .table-card { background: white; border-radius: 20px; padding: 2rem; box-shadow: var(--card-shadow); overflow: hidden; margin-bottom: 2rem; position: relative; }
+        .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .data-table thead th { background: var(--primary); color: white; padding: 1rem; text-align: center; font-weight: 600; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .data-table thead th:first-child { border-radius: 12px 0 0 0; text-align: left; }
+        .data-table thead th:last-child { border-radius: 0 12px 0 0; }
+        .data-table tbody tr:hover { background: var(--bg-light); }
+        .data-table tbody td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.95rem; text-align: center; }
+        .data-table tbody td:first-child { text-align: left; }
+        .obra-name { font-weight: 700; color: var(--primary); font-family: 'JetBrains Mono', monospace; }
+        .numeric-cell { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .highlighted-col { background-color: var(--accent-light) !important; }
+        .gray-highlight-col { background-color: var(--gray-highlight) !important; }
+        .merged-cell { background-color: var(--bg-light) !important; }
+        .clickable-coef { cursor: pointer; }
+        .clickable-coef:hover { background-color: var(--primary) !important; color: white; transform: scale(1.05); }
+        .coef-hint { font-size: 0.75rem; color: var(--text-light); font-style: italic; margin-top: 0.25rem; }
+        .badge { display: inline-block; padding: 0.35rem 0.85rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .badge.success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+        .badge.warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+        .badge.danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+        .footer-note { background: white; border-radius: 16px; padding: 1.5rem; margin-top: 2rem; box-shadow: var(--card-shadow); border-left: 4px solid var(--accent); }
+        .footer-note p { color: var(--text-light); line-height: 1.6; font-size: 0.95rem; }
+        .legend-box { background: var(--bg-light); border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; }
+        .legend-item { display: flex; align-items: start; gap: 1rem; margin-bottom: 1rem; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .legend-icon { width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; margin-top: 2px; }
+        .legend-text { font-size: 0.875rem; color: var(--text-dark); line-height: 1.5; }
+        .legend-title { font-weight: 700; margin-bottom: 0.25rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animated { animation: fadeIn 0.6s ease-out; }
+        .loading, .error-box { display: none; text-align: center; padding: 3rem; color: white; font-size: 1.15rem; }
+        .error-box { display: none; background: white; color: var(--danger); border-radius: 16px; margin: 2rem auto; max-width: 700px; padding: 2rem; font-weight: 600; }
+        .change-indicator { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.875rem; font-weight: 700; white-space: nowrap; }
+        .change-indicator.positive { color: var(--success); }
+        .change-indicator.negative { color: var(--danger); }
+        .projection-card { background: white; border-radius: 20px; padding: 2.5rem; box-shadow: var(--card-shadow); margin-bottom: 2rem; text-align: center; }
+        .projection-title { font-size: 1.5rem; font-weight: 700; color: var(--primary); margin-bottom: 2rem; }
+        .projection-total { background: var(--accent-light); border-radius: 16px; padding: 2rem; margin-bottom: 2rem; }
+        .projection-total-label { font-size: 0.9rem; color: var(--text-light); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .projection-total-value { font-size: 2.5rem; font-weight: 800; color: var(--primary); font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2 class="login-title">Informe Mensual de Obras</h2>
+            <p class="login-subtitle">Ingrese la contraseña para acceder</p>
+            <form id="login-form">
+                <input type="password" id="password-input" class="login-input" placeholder="Contraseña" autocomplete="off">
+                <button type="submit" class="login-btn">Ingresar</button>
+                <p class="login-error" id="login-error">Contraseña incorrecta. Intente nuevamente.</p>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" id="main-content">
+        <div class="header animated">
+            <div class="header-content">
+                <h1>Informe Mensual de Obras</h1>
+                <p class="subtitle">Rendimiento y certificaciones</p>
+                <div class="period-selector" id="period-selector"></div>
+                <div class="header-actions">
+                    <button class="refresh-btn" id="refresh-btn">↻ Actualizar datos</button>
+                    <span class="update-note" id="update-note"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">Cargando datos...</div>
+        <div class="error-box" id="error-box"></div>
+        <div id="dashboard-content" class="animated"></div>
+    </div>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        const CORRECT_PASSWORD = 'DelgadoyGroos';
+        let currentPeriod = null;
+        let idxChart = null, certifChart = null, historicalChart = null, kpaseChart = null;
+
+        document.getElementById('login-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const password = document.getElementById('password-input').value;
+            const errorMsg = document.getElementById('login-error');
+            if (password === CORRECT_PASSWORD) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('main-content').classList.add('authenticated');
+                iniciar();
+            } else {
+                errorMsg.style.display = 'block';
+                document.getElementById('password-input').value = '';
+                document.getElementById('password-input').focus();
+            }
+        });
+
+        document.getElementById('refresh-btn').addEventListener('click', () => iniciar(true));
+
+        // ---------- Formato ----------
+        function formatCurrency(value, moneda) {
+            if (value === null || value === undefined || isNaN(value)) return '-';
+            const isUSD = (moneda || '').toUpperCase().includes('U');
+            return new Intl.NumberFormat('es-AR', { style: 'currency', currency: isUSD ? 'USD' : 'ARS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+        }
+        function formatPercent(value) { return (value === null || value === undefined || isNaN(value)) ? '-' : (value * 100).toFixed(1) + '%'; }
+        function formatNumber(value, decimals = 2) { return (value === null || value === undefined || isNaN(value)) ? '-' : value.toFixed(decimals); }
+
+        function getStatusBadge(desvioPct) {
+            if (desvioPct === null || desvioPct === undefined) return '';
+            if (desvioPct > 0.05) return '<span class="badge success">Desempeño Superior</span>';
+            if (desvioPct < -0.05) return '<span class="badge danger">Déficit de Avance</span>';
+            return '<span class="badge warning">Conforme al Plan</span>';
+        }
+
+        function getChangeIndicator(current, previous) {
+            if (current === null || previous === null || !previous) return '';
+            const change = ((current - previous) / previous) * 100;
+            const arrow = change > 0 ? '↑' : '↓';
+            const colorClass = change > 0 ? 'positive' : 'negative';
+            return `<span class="change-indicator ${colorClass}">${arrow} ${Math.abs(change).toFixed(1)}%</span>`;
+        }
+
+        // ---------- Arranque ----------
+        async function iniciar(esRefresh = false) {
+            const loading = document.getElementById('loading');
+            const errorBox = document.getElementById('error-box');
+            const content = document.getElementById('dashboard-content');
+            loading.style.display = 'block';
+            errorBox.style.display = 'none';
+            content.style.opacity = '0.3';
+
+            try {
+                await DataEngine.cargar();
+                const meta = DataEngine.getMeta();
+                document.getElementById('update-note').textContent =
+                    'Período activo: ' + DataEngine.periodoLabel(meta.periodo_activo);
+
+                construirSelectorDePeriodos();
+                if (!currentPeriod) currentPeriod = meta.periodo_activo;
+                renderDashboard(currentPeriod);
+            } catch (err) {
+                console.error(err);
+                errorBox.textContent = 'No se pudieron cargar los datos (' + err.message + '). Verificá que dashboard_data.csv y meta.json estén publicados junto al dashboard.';
+                errorBox.style.display = 'block';
+            } finally {
+                loading.style.display = 'none';
+                content.style.opacity = '1';
+            }
+        }
+
+        function construirSelectorDePeriodos() {
+            const cont = document.getElementById('period-selector');
+            const periodos = DataEngine.periodosParaSelector(); // [activo, activo-1, activo-2, activo-3]
+            let html = '';
+            if (DataEngine.hayProyeccion()) {
+                html += `<button class="period-btn" data-period="proyeccion">Proy. próx. período</button>`;
+            }
+            periodos.forEach((p, i) => {
+                const label = DataEngine.periodoLabel(p) + (i === 0 ? ' (Actual)' : '');
+                html += `<button class="period-btn" data-period="${p}">${label}</button>`;
+            });
+            cont.innerHTML = html;
+            marcarBotonActivo(currentPeriod || periodos[0]);
+
+            cont.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    currentPeriod = this.dataset.period;
+                    marcarBotonActivo(currentPeriod);
+                    renderDashboard(currentPeriod);
+                });
+            });
+        }
+
+        function marcarBotonActivo(periodo) {
+            document.querySelectorAll('.period-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.period === periodo);
+            });
+        }
+
+        function closeHistorical() {
+            const overlay = document.getElementById('historical-overlay');
+            if (overlay) overlay.classList.remove('active');
+            if (historicalChart) { historicalChart.destroy(); historicalChart = null; }
+        }
+        function closeKpaseHistorical() {
+            const overlay = document.getElementById('kpase-historical-overlay');
+            if (overlay) overlay.classList.remove('active');
+            if (kpaseChart) { kpaseChart.destroy(); kpaseChart = null; }
+        }
+
+        // ---------- Render principal ----------
+        function renderDashboard(periodo) {
+            closeHistorical();
+            closeKpaseHistorical();
+
+            if (periodo === 'proyeccion') { renderProjection(); return; }
+
+            const data = DataEngine.datosDelPeriodo(periodo);
+            const periodoPrevio = DataEngine.periodoAnterior(periodo);
+            const dataPrevia = DataEngine.periodosDisponibles().includes(periodoPrevio) ? DataEngine.datosDelPeriodo(periodoPrevio) : null;
+
+            const container = document.getElementById('dashboard-content');
+
+            const totalCertifReal = data.certif.reduce((s, o) => s + (o.certifReal || 0), 0);
+            const totalCertifPrevisto = data.certif.reduce((s, o) => s + (o.certifPrevisto || 0), 0);
+            const totalAdicionales = data.certif.reduce((s, o) => s + (o.adicionales || 0), 0);
+
+            let martellaChange = '', therockChange = '', certifRealChange = '', certifPrevistoChange = '';
+            if (dataPrevia) {
+                martellaChange = getChangeIndicator(data.promPonderado.martella, dataPrevia.promPonderado.martella);
+                therockChange = getChangeIndicator(data.promPonderado.therock, dataPrevia.promPonderado.therock);
+                const totalRealPrev = dataPrevia.certif.reduce((s, o) => s + (o.certifReal || 0), 0);
+                const totalPrevistoPrev = dataPrevia.certif.reduce((s, o) => s + (o.certifPrevisto || 0), 0);
+                certifRealChange = getChangeIndicator(totalCertifReal, totalRealPrev);
+                certifPrevistoChange = getChangeIndicator(totalCertifPrevisto, totalPrevistoPrev);
+            }
+
+            container.innerHTML = `
+                <div class="two-col-metrics">
+                    <div class="metric-card">
+                        <div class="metric-label">Martella IDX Promedio Ponderado - Todas las Obras</div>
+                        <div class="metric-header">
+                            <div class="metric-value">${formatNumber(data.promPonderado.martella)}</div>
+                            ${martellaChange ? `<div>${martellaChange}</div>` : ''}
+                        </div>
+                        <div class="metric-footer">
+                            <div class="metric-status">${data.promPonderado.martella > 1 ? 'Sobre especializado' : (data.promPonderado.martella < 0.95 ? 'Sub especializado' : 'Óptimo')}</div>
+                            ${martellaChange ? '<div class="metric-vs-text">versus período anterior</div>' : ''}
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">The Rock IDX Promedio Ponderado - Todas las Obras</div>
+                        <div class="metric-header">
+                            <div class="metric-value">${formatNumber(data.promPonderado.therock)}</div>
+                            ${therockChange ? `<div>${therockChange}</div>` : ''}
+                        </div>
+                        <div class="metric-footer">
+                            <div class="metric-status">${data.promPonderado.therock > 1 ? 'Rendimiento superior' : 'Bajo rendimiento'}</div>
+                            ${therockChange ? '<div class="metric-vs-text">versus período anterior</div>' : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-card" id="idx-chart-container">
+                    <div class="chart-header">
+                        <div>
+                            <h3 class="chart-title">Índices de Rendimiento por Obra</h3>
+                            <p class="chart-subtitle">${data.month}</p>
+                            <p class="chart-legend-note" style="color: var(--primary); margin-top: 0.5rem;">💡 Hacé clic en una barra para ver la serie histórica de esa obra</p>
+                        </div>
+                    </div>
+                    <div style="position: relative; height: 420px;"><canvas id="idxChart"></canvas></div>
+                    <div class="historical-overlay" id="historical-overlay">
+                        <button class="historical-close" onclick="closeHistorical()">×</button>
+                        <h3 class="chart-title" id="historical-title" style="margin-bottom: 1.5rem;">Serie Histórica</h3>
+                        <div style="position: relative; height: calc(100% - 80px);"><canvas id="historicalChart"></canvas></div>
+                    </div>
+                    <div class="legend-box">
+                        <div class="legend-item">
+                            <div class="legend-icon" style="background: #0066CC;"></div>
+                            <div class="legend-text"><div class="legend-title">Martella IDX</div>Especialización del plantel según horas trabajadas por persona</div>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-icon" style="background: #DC3545;"></div>
+                            <div class="legend-text"><div class="legend-title">The Rock IDX</div>Relación entre avance alcanzado (horas disponibles) y personal en obra (horas consumidas)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3 class="chart-title" style="margin-bottom: 1.5rem;">Índices por Obra y Quincena</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table">
+                            <thead><tr><th>Obra</th><th>Martella IDX Prom.</th><th>Martella Q1</th><th>Martella Q2</th><th>The Rock IDX Prom.</th><th>The Rock Q1</th><th>The Rock Q2</th></tr></thead>
+                            <tbody>
+                                ${data.idxPorObra.map(o => `
+                                    <tr>
+                                        <td class="obra-name">${o.obra}</td>
+                                        <td class="numeric-cell highlighted-col">${formatNumber(o.martellaProm)}</td>
+                                        <td class="numeric-cell">${formatNumber(o.martellaQ1)}</td>
+                                        <td class="numeric-cell">${o.martellaQ2 !== null ? formatNumber(o.martellaQ2) : '-'}</td>
+                                        <td class="numeric-cell highlighted-col">${formatNumber(o.therockProm)}</td>
+                                        <td class="numeric-cell">${formatNumber(o.therockQ1)}</td>
+                                        <td class="numeric-cell">${o.therockQ2 !== null ? formatNumber(o.therockQ2) : '-'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="two-col-metrics" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Certificado obra básica</div>
+                        <div class="metric-value" style="font-size: 1.85rem;">${formatCurrency(totalCertifReal)}</div>
+                        <div class="metric-change">${certifRealChange || 'Certificación real del período'}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total Certificado obra básica Previsto</div>
+                        <div class="metric-value" style="font-size: 1.85rem;">${formatCurrency(totalCertifPrevisto)}</div>
+                        <div class="metric-change">${certifPrevistoChange || 'Certificación prevista del período'}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total Adicionales</div>
+                        <div class="metric-value" style="font-size: 1.85rem;">${formatCurrency(totalAdicionales)}</div>
+                        <div class="metric-change">Adicionales certificados del período</div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3 class="chart-title" style="margin-bottom: 1.5rem;">Detalle de Certificaciones por Obra</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Obra</th><th>Avance Acum.</th><th>Certificado Real</th><th>Certificado Previsto</th>
+                                    <th>Desvío $</th><th>Desvío %</th><th>Estado Mensual</th><th>Estado Actual</th><th>ADICIONALES</th>
+                                    <th>Pase Licitación</th><th>Pase Esperado</th>
+                                    <th>Coef. de Pase<br><span class="coef-hint">💡 Click para ver histórico</span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.certif.map(o => {
+                                    const k = data.kpase[o.obra] || {};
+                                    const hasKpase = k.coef_pase !== undefined && k.coef_pase !== null;
+                                    return `
+                                        <tr>
+                                            <td class="obra-name">${o.obra}</td>
+                                            <td class="numeric-cell">${formatPercent(o.avanceAcum)}</td>
+                                            <td class="numeric-cell">${formatCurrency(o.certifReal, o.moneda)}</td>
+                                            <td class="numeric-cell">${formatCurrency(o.certifPrevisto, o.moneda)}</td>
+                                            <td class="numeric-cell" style="color: ${o.desvio > 0 ? 'var(--success)' : 'var(--danger)'}">${formatCurrency(o.desvio, o.moneda)}</td>
+                                            <td class="numeric-cell">${formatPercent(o.desvioPct)}</td>
+                                            <td>${getStatusBadge(o.desvioPct)}</td>
+                                            <td>${getStatusBadge(o.estadoActualPct)}</td>
+                                            <td class="numeric-cell">${o.adicionales !== null ? formatCurrency(o.adicionales, o.moneda) : '-'}</td>
+                                            <td class="numeric-cell">${k.pase_licitacion !== undefined && k.pase_licitacion !== null ? formatNumber(k.pase_licitacion) : '-'}</td>
+                                            <td class="numeric-cell">${k.pase_esperado !== undefined && k.pase_esperado !== null ? formatNumber(k.pase_esperado) : '-'}</td>
+                                            <td class="numeric-cell gray-highlight-col ${hasKpase ? 'clickable-coef' : ''}" ${hasKpase ? `onclick="showKpaseHistorical('${o.obra}')"` : ''}>${hasKpase ? formatNumber(k.coef_pase) : '-'}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="historical-overlay" id="kpase-historical-overlay">
+                        <button class="historical-close" onclick="closeKpaseHistorical()">×</button>
+                        <h3 class="chart-title" id="kpase-historical-title" style="margin-bottom: 1.5rem;">Serie Histórica de Coeficiente de Pase</h3>
+                        <div style="position: relative; height: calc(100% - 80px);"><canvas id="kpaseChart"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <div><h3 class="chart-title">Distribución de Certificaciones</h3><p class="chart-subtitle">Aporte por obra del total del certificado mensual</p></div>
+                    </div>
+                    <div style="position: relative; height: 420px; padding-top: 20px;"><canvas id="certifChart"></canvas></div>
+                    <p class="chart-note">Nota: Estos valores están referenciados al CAC base propio de cada obra.</p>
+                </div>
+            `;
+
+            setTimeout(() => {
+                renderIdxChart(data);
+                renderCertifChart(data);
+            }, 50);
+        }
+
+        function renderProjection() {
+            const proy = DataEngine.proyeccion();
+            const container = document.getElementById('dashboard-content');
+            const total = proy.detalle.reduce((s, o) => s + (o.certifPrevisto || 0), 0);
+            container.innerHTML = `
+                <div class="projection-card">
+                    <h2 class="projection-title">Proyección ${proy.label}</h2>
+                    <div class="projection-total">
+                        <div class="projection-total-label">Total Certificado Previsto Próximo Mes</div>
+                        <div class="projection-total-value">${formatCurrency(total)}</div>
+                    </div>
+                    <div class="table-card" style="text-align: left;">
+                        <h3 class="chart-title" style="margin-bottom: 1.5rem;">Detalle por Obra</h3>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead><tr><th>Obra</th><th>Certificado Previsto</th><th>% de Avance Proyectado</th></tr></thead>
+                                <tbody>
+                                    ${proy.detalle.map(o => `
+                                        <tr>
+                                            <td class="obra-name">${o.obra}</td>
+                                            <td class="numeric-cell">${formatCurrency(o.certifPrevisto)}</td>
+                                            <td class="numeric-cell">${formatPercent(o.avanceProyectado)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ---------- Gráficos ----------
+        function renderIdxChart(data) {
+            const ctx = document.getElementById('idxChart');
+            if (idxChart) idxChart.destroy();
+
+            idxChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.idxPorObra.map(o => o.obra),
+                    datasets: [
+                        { label: 'Martella IDX', data: data.idxPorObra.map(o => o.martellaProm), backgroundColor: '#0066CC', borderColor: '#0066CC', borderWidth: 2, borderRadius: 8 },
+                        { label: 'The Rock IDX', data: data.idxPorObra.map(o => o.therockProm), backgroundColor: '#DC3545', borderColor: '#DC3545', borderWidth: 2, borderRadius: 8 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    onClick: (event, activeElements) => {
+                        if (activeElements.length > 0) showHistorical(data.idxPorObra[activeElements[0].index].obra);
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (c) => c.dataset.label + ': ' + c.parsed.y.toFixed(2) } },
+                        datalabels: {
+                            anchor: 'center', align: 'center',
+                            color: (c) => c.datasetIndex === 0 ? '#FFD700' : '#FFFFFF',
+                            font: { weight: 'bold', size: 12, family: 'JetBrains Mono' },
+                            formatter: (v) => v === null ? '' : v.toFixed(2)
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 2, ticks: { font: { family: 'JetBrains Mono', size: 11 }, stepSize: 0.2 } },
+                        x: { grid: { display: false }, ticks: { font: { family: 'JetBrains Mono', weight: '600', size: 12 } } }
+                    }
+                }
+            });
+        }
+
+        function showHistorical(obra) {
+            document.getElementById('historical-overlay').classList.add('active');
+            document.getElementById('historical-title').textContent = `Serie Histórica - ${obra}`;
+            renderHistoricalChart(obra, currentPeriod);
+        }
+
+        function renderHistoricalChart(obra, hastaPeriodo) {
+            const ctx = document.getElementById('historicalChart');
+            if (historicalChart) historicalChart.destroy();
+
+            const serie = DataEngine.serieHistoricaObra(obra, hastaPeriodo);
+
+            historicalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: serie.map(p => p.label),
+                    datasets: [
+                        { label: `${obra} - Martella IDX`, data: serie.map(p => p.martella), borderColor: '#0066CC', backgroundColor: 'rgba(0,102,204,0.1)', borderWidth: 3, tension: 0.4, pointRadius: 5 },
+                        { label: `${obra} - The Rock IDX`, data: serie.map(p => p.therock), borderColor: '#DC3545', backgroundColor: 'rgba(220,53,69,0.1)', borderWidth: 3, tension: 0.4, pointRadius: 5 },
+                        { label: 'Martella pond. acumulado', data: serie.map(p => p.martellaPondAcum), borderColor: '#0066CC', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointRadius: 0 },
+                        { label: 'The Rock pond. acumulado', data: serie.map(p => p.therockPondAcum), borderColor: '#DC3545', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 5], tension: 0.4, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, padding: 15 } }, datalabels: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { ticks: { maxRotation: 45, minRotation: 45, font: { family: 'JetBrains Mono', size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        function showKpaseHistorical(obra) {
+            document.getElementById('kpase-historical-overlay').classList.add('active');
+            document.getElementById('kpase-historical-title').textContent = `Serie Histórica - ${obra} - Coef. de Pase`;
+            renderKpaseChart(obra, currentPeriod);
+        }
+
+        function renderKpaseChart(obra, hastaPeriodo) {
+            const ctx = document.getElementById('kpaseChart');
+            if (kpaseChart) kpaseChart.destroy();
+            const serie = DataEngine.serieHistoricaKpase(obra, hastaPeriodo);
+
+            kpaseChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: serie.map(p => p.label),
+                    datasets: [
+                        { label: 'Pase Licitación', data: serie.map(p => p.pase_licitacion), backgroundColor: 'rgba(76,175,80,0.7)', borderColor: 'rgba(76,175,80,1)', borderWidth: 2, borderRadius: 6 },
+                        { label: 'Pase Esperado', data: serie.map(p => p.pase_esperado), backgroundColor: 'rgba(54,162,235,0.7)', borderColor: 'rgba(54,162,235,1)', borderWidth: 2, borderRadius: 6 },
+                        { label: 'Coef. de Pase (👎 > 1 Desfavorable | 👍 < 1 Favorable)', data: serie.map(p => p.coef_pase), backgroundColor: 'rgba(255,159,64,0.7)', borderColor: 'rgba(255,159,64,1)', borderWidth: 2, borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { font: { size: 13, weight: 'bold' } } },
+                        datalabels: { anchor: 'end', align: 'top', color: '#1e293b', font: { weight: 'bold', size: 11, family: 'JetBrains Mono' }, formatter: (v) => v === null ? '' : v.toFixed(2) }
+                    },
+                    scales: { y: { beginAtZero: true }, x: { ticks: { maxRotation: 45, minRotation: 45 } } }
+                },
+                plugins: [{
+                    // Línea de referencia gruesa en y=1: por arriba es desfavorable,
+                    // por abajo favorable (según la definición del coeficiente de pase).
+                    afterDraw: (chart) => {
+                        const { ctx, chartArea, scales } = chart;
+                        if (!chartArea) return;
+                        const y = scales.y.getPixelForValue(1);
+                        if (y < chartArea.top || y > chartArea.bottom) return;
+                        ctx.save();
+                        ctx.strokeStyle = '#111827';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.moveTo(chartArea.left, y);
+                        ctx.lineTo(chartArea.right, y);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }]
+            });
+        }
+
+        function renderCertifChart(data) {
+            const ctx = document.getElementById('certifChart');
+            if (certifChart) certifChart.destroy();
+
+            const obras = data.certif.filter(o => o.certifReal > 0);
+            const total = obras.reduce((s, o) => s + o.certifReal, 0);
+
+            certifChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: obras.map(o => o.obra),
+                    datasets: [{
+                        data: obras.map(o => o.certifReal),
+                        backgroundColor: ['rgba(102,126,234,0.85)', 'rgba(118,75,162,0.85)', 'rgba(16,185,129,0.85)', 'rgba(245,158,11,0.85)', 'rgba(239,68,68,0.85)', 'rgba(59,130,246,0.85)', 'rgba(168,85,247,0.85)', 'rgba(236,72,153,0.85)'],
+                        borderWidth: 3, borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (c) => `${c.label}: ${formatCurrency(c.parsed)} (${((c.parsed / total) * 100).toFixed(1)}%)` } },
+                        datalabels: {
+                            formatter: (v, c) => { const pct = (v / total) * 100; return pct < 8 ? '' : `${pct.toFixed(1)}%\n${c.chart.data.labels[c.dataIndex]}`; },
+                            color: '#ffffff', font: { weight: 'bold', size: 11, family: 'JetBrains Mono' }, textAlign: 'center', anchor: 'center', align: 'center'
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
